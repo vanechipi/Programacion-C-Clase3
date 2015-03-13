@@ -18,6 +18,7 @@ struct concesionario *curso_concesionario_alloc(void)
 		return NULL;
 
 	INIT_LIST_HEAD(&con->garaje);
+//listas solo se inicializan cuando son listas, no punteros a estructuras.
 
 	return con;
 }
@@ -32,6 +33,7 @@ void curso_concesionario_free(struct concesionario *con)
 
 	list_for_each_entry_safe(c, tmp, &con->garaje, head) {
 		list_del(&c->head);
+//head, nombre del list head de nuestras estructuras
 		curso_coche_free(c);
 	}
 
@@ -44,12 +46,16 @@ void curso_concesionario_attr_unset_coche(struct concesionario *con,
 	int i = 0;
 	struct coche *c, *tmp;
 
-	if (pos > 0 && pos > con->num_coches)
+//esta comprobacion es innecesaria porque realmente no hay que controlar el tamaño de una lista. no va a haber ningun fallo sin esto.
+//Ademas tenemos un recorrido seguro.
+
+	if (pos < 0 || pos > con->num_coches)
 		return;
 
 	list_for_each_entry_safe(c, tmp, &con->garaje, head) {
 		if (i == pos) {
 			list_del(&c->head);
+//hay que utilizar el free de la estructura coche no este , xk se quedan campos sin liberar.
 			xfree(c);
 			break;
 		}
