@@ -89,6 +89,7 @@ static void curso_concesionario_set_data(struct concesionario *con,
 		c = (struct coche *)data;
 		list_add(&c->head, &con->garaje);
 		con->num_coches++;
+		con->flags |= (1 << CURSO_CONCESIONARIO_ATTR_NUM_COCHES);
 		break;
 	}
 

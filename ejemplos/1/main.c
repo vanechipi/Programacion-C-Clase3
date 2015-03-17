@@ -1,10 +1,12 @@
 #include "concesionario.h"
+#include <assert.h>
 
 int main(void)
 {
 	struct coche *c1, *c2;
 	struct concesionario *con;
 	char info[4000];
+	uint32_t numeroDeCoches = 0;
 
 	c1 = curso_coche_alloc();
 
@@ -29,8 +31,12 @@ int main(void)
 	curso_concesionario_attr_set_coche(con, CURSO_CONCESIONARIO_ATTR_COCHE,
 					   c2);
 
+	numeroDeCoches = curso_concesionario_attr_get_u32(con, CURSO_CONCESIONARIO_ATTR_NUM_COCHES);
+	assert(numeroDeCoches == 2);
+
 	curso_concesionario_snprintf(info, sizeof(info), con);
 	printf("%s", info);
+	printf("El concesionario tiene %d coches\n", numeroDeCoches);
 
 	curso_concesionario_free(con);
 	return 0;
