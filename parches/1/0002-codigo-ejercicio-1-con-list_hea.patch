@@ -1,0 +1,735 @@
+From 161bdf08d7cb76b96a359550774214c51b3bf3a9 Mon Sep 17 00:00:00 2001
+From: VaneChipi <vchipirras@hotmail.com>
+Date: Thu, 19 Mar 2015 00:28:51 +0100
+Subject: [PATCH 3/5] Subido los archivos para el ejercicio 1 con list_head
+
+---
+ ejercicios/1/gestor_tarea.c | 140 +++++++++++++++++++++++++
+ ejercicios/1/gestor_tarea.h |  29 ++++++
+ ejercicios/1/list.h         | 244 ++++++++++++++++++++++++++++++++++++++++++++
+ ejercicios/1/main.c         |  77 ++++++++++++++
+ ejercicios/1/tarea.c        | 140 +++++++++++++++++++++++++
+ ejercicios/1/tarea.h        |  46 +++++++++
+ 6 files changed, 676 insertions(+)
+ create mode 100644 ejercicios/1/gestor_tarea.c
+ create mode 100644 ejercicios/1/gestor_tarea.h
+ create mode 100644 ejercicios/1/list.h
+ create mode 100644 ejercicios/1/main.c
+ create mode 100644 ejercicios/1/tarea.c
+ create mode 100644 ejercicios/1/tarea.h
+
+diff --git a/ejercicios/1/gestor_tarea.c b/ejercicios/1/gestor_tarea.c
+new file mode 100644
+index 0000000..0d96201
+--- /dev/null
++++ b/ejercicios/1/gestor_tarea.c
+@@ -0,0 +1,140 @@
++#include <string.h>
++#include "gestor_tarea.h"
++
++#define GESTOR_TAREAS_MAXT 10
++
++struct gestor_tarea {
++	struct list_head tareas;
++	uint32_t num_tareas;
++	uint32_t flags;
++};
++
++struct gestor_tarea *gestor_tareas_alloc(void)
++{
++	struct gestor_tarea *gt = malloc(sizeof(struct gestor_tarea));
++
++	if (gt == NULL)
++		return NULL;
++
++	INIT_LIST_HEAD(&gt->tareas);
++	return gt;
++}
++
++void gestor_tareas_free(struct gestor_tarea *gt)
++{
++	int i;
++	struct tarea *t, *tmp;
++
++	list_for_each_entry_safe(t, tmp, &gt->tareas, head) {
++		list_del(&t->head);
++		tarea_free(t);
++	}
++
++	xfree(gt);
++}
++
++bool gestor_tareas_is_set(const struct gestor_tarea *gt, uint32_t attr)
++{
++	return gt->flags & (1 << attr);
++}
++
++void gestor_tareas_unset_tarea(struct gestor_tarea *gt, uint32_t pos)
++{
++	int i = 0;
++	struct tarea *t, *tmp;
++
++	if (pos < 0 || pos > gt->num_tareas)
++		return;
++
++	list_for_each_entry_safe(t, tmp, &gt->tareas, head) {
++		if (i == pos) {
++			list_del(&t->head);
++			tarea_free(t);
++			break;
++		}
++
++		i++;
++	}
++
++	gt->num_tareas--;
++	if (gt->num_tareas == 0)
++		gt->flags &= ~(1 << GESTOR_TAREAS_TAREAS);
++}
++
++void gestor_tareas_set_tarea(struct gestor_tarea *gt, const void *data)
++{
++	struct tarea *t;
++	//int pos;
++	//int prioridad_t1, prioridad_t2;
++
++	if (gt->num_tareas > GESTOR_TAREAS_MAXT) {
++		printf("El gestor de tareas está lleno\n");
++		return;
++	}
++
++	/*prioridad_t1 = *(int *)tarea_get_data((struct tarea *)data, T_PRIORIDAD);
++
++	for (pos = 0; pos < gt->num_tareas; pos++) {
++		prioridad_t2 = *(int *)tarea_get_data(gt->tareas[pos], T_PRIORIDAD);
++		if (prioridad_t1 < prioridad_t2) break;
++    	}*/
++	t = (struct tarea *)data;
++	list_add(&t->head, &gt->tareas);
++	gt->num_tareas++;
++	gt->flags |= (1 << GESTOR_TAREAS_NUM_TAREAS);
++	gt->flags |= (1 << GESTOR_TAREAS_TAREAS);
++
++}
++
++const void *gestor_tareas_get_data(struct gestor_tarea *gt, uint16_t attr, uint32_t pos)
++{
++	int i = 0;
++	struct tarea *t;
++
++	if (!(gt->flags & (1 << attr)))
++		return NULL;
++
++	switch(attr) {
++	case GESTOR_TAREAS_TAREAS:
++		list_for_each_entry(t, &gt->tareas, head) {
++			if (i == pos)
++				break;
++			i++;
++		}
++
++		return t;
++	case GESTOR_TAREAS_NUM_TAREAS:
++		return &gt->num_tareas;
++	}
++	return NULL;
++}
++
++uint32_t gestor_tareas_get_u32(struct gestor_tarea *gt, uint16_t attr)
++{
++	const void *ret = gestor_tareas_get_data(gt, attr, 0);
++	return ret == NULL ? 0 : *((uint32_t *)ret);
++}
++
++const char *gestor_tareas_get_str(struct gestor_tarea *gt, uint16_t attr)
++{
++	return gestor_tareas_get_data(gt, attr, 0);
++}
++
++struct tarea *gestor_tareas_get_tarea(struct gestor_tarea *gt, uint16_t attr, uint32_t pos)
++{
++	return (struct tarea *)gestor_tareas_get_data(gt, attr, pos);
++}
++
++int gestor_tareas_snprintf(char *buf, size_t size, struct gestor_tarea *gt)
++{
++	int ret = 0;
++	struct tarea *t;
++
++	ret = ret + snprintf(buf, size, "El gestor de tareas tiene %d tareas:\n",gt->num_tareas);
++
++	list_for_each_entry(t, &gt->tareas, head) {
++		ret = ret + tarea_snprintf(buf + ret, size - ret, t);
++		ret = ret + snprintf(buf + ret, size - ret, "\n");
++	}
++	return ret;
++}
+diff --git a/ejercicios/1/gestor_tarea.h b/ejercicios/1/gestor_tarea.h
+new file mode 100644
+index 0000000..b215a13
+--- /dev/null
++++ b/ejercicios/1/gestor_tarea.h
+@@ -0,0 +1,29 @@
++#include "tarea.h"
++
++enum {
++	GESTOR_TAREAS_TAREAS,
++	GESTOR_TAREAS_NUM_TAREAS,
++	__GESTOR_TAREAS_MAX
++};
++
++#define GESTOR_TAREAS_MAX (__GESTOR_TAREAS_MAX - 1)
++
++#define xfree(ptr)      free((void *)ptr);
++
++struct gestor_tarea;
++
++struct gestor_tarea *gestor_tareas_alloc(void);
++void gestor_tareas_free(struct gestor_tarea *gt);
++
++bool gestor_tareas_is_set(const struct gestor_tarea *gt, uint32_t attr);
++
++void gestor_tareas_unset_tarea(struct gestor_tarea *gt, uint32_t pos);
++
++void gestor_tareas_set_tarea(struct gestor_tarea *gt, const void *data);
++
++const void *gestor_tareas_get_data(struct gestor_tarea *gt, uint16_t attr, uint32_t pos);
++uint32_t gestor_tareas_get_u32(struct gestor_tarea *gt, uint16_t attr);
++const char *gestor_tareas_get_str(struct gestor_tarea *gt, uint16_t attr);
++struct tarea *gestor_tareas_get_tarea(struct gestor_tarea *gt, uint16_t ttr, uint32_t pos);
++
++int gestor_tareas_snprintf(char *buf, size_t size, struct gestor_tarea *gt);
+diff --git a/ejercicios/1/list.h b/ejercicios/1/list.h
+new file mode 100644
+index 0000000..3a76885
+--- /dev/null
++++ b/ejercicios/1/list.h
+@@ -0,0 +1,244 @@
++#ifndef __LIST_H
++#define __LIST_H
++
++/* This file is from Linux Kernel (include/linux/list.h) 
++ * and modified by simply removing hardware prefetching of list items. 
++ * Here by copyright, credits attributed to wherever they belong.
++ * Kulesh Shanmugasundaram (kulesh [squiggly] isis.poly.edu)
++ */
++
++/*
++ * Simple doubly linked list implementation.
++ *
++ * Some of the internal functions ("__xxx") are useful when
++ * manipulating whole lists rather than single entries, as
++ * sometimes we already know the next/prev entries and we can
++ * generate better code by using them directly rather than
++ * using the generic single-entry routines.
++ */
++
++struct list_head {
++	struct list_head *next, *prev;
++};
++
++#define LIST_HEAD_INIT(name) { &(name), &(name) }
++
++#define LIST_HEAD(name) \
++	struct list_head name = LIST_HEAD_INIT(name)
++
++#define INIT_LIST_HEAD(ptr) do { \
++	(ptr)->next = (ptr); (ptr)->prev = (ptr); \
++} while (0)
++
++/*
++ * Insert a new entry between two known consecutive entries. 
++ *
++ * This is only for internal list manipulation where we know
++ * the prev/next entries already!
++ */
++static inline void __list_add(struct list_head *new,
++			      struct list_head *prev,
++			      struct list_head *next)
++{
++	next->prev = new;
++	new->next = next;
++	new->prev = prev;
++	prev->next = new;
++}
++
++/**
++ * list_add - add a new entry
++ * @new: new entry to be added
++ * @head: list head to add it after
++ *
++ * Insert a new entry after the specified head.
++ * This is good for implementing stacks.
++ */
++static inline void list_add(struct list_head *new, struct list_head *head)
++{
++	__list_add(new, head, head->next);
++}
++
++/**
++ * list_add_tail - add a new entry
++ * @new: new entry to be added
++ * @head: list head to add it before
++ *
++ * Insert a new entry before the specified head.
++ * This is useful for implementing queues.
++ */
++static inline void list_add_tail(struct list_head *new, struct list_head *head)
++{
++	__list_add(new, head->prev, head);
++}
++
++/*
++ * Delete a list entry by making the prev/next entries
++ * point to each other.
++ *
++ * This is only for internal list manipulation where we know
++ * the prev/next entries already!
++ */
++static inline void __list_del(struct list_head *prev, struct list_head *next)
++{
++	next->prev = prev;
++	prev->next = next;
++}
++
++/**
++ * list_del - deletes entry from list.
++ * @entry: the element to delete from the list.
++ * Note: list_empty on entry does not return true after this, the entry is in an undefined state.
++ */
++static inline void list_del(struct list_head *entry)
++{
++	__list_del(entry->prev, entry->next);
++	entry->next = (void *) 0;
++	entry->prev = (void *) 0;
++}
++
++/**
++ * list_del_init - deletes entry from list and reinitialize it.
++ * @entry: the element to delete from the list.
++ */
++static inline void list_del_init(struct list_head *entry)
++{
++	__list_del(entry->prev, entry->next);
++	INIT_LIST_HEAD(entry); 
++}
++
++/**
++ * list_move - delete from one list and add as another's head
++ * @list: the entry to move
++ * @head: the head that will precede our entry
++ */
++static inline void list_move(struct list_head *list, struct list_head *head)
++{
++        __list_del(list->prev, list->next);
++        list_add(list, head);
++}
++
++/**
++ * list_move_tail - delete from one list and add as another's tail
++ * @list: the entry to move
++ * @head: the head that will follow our entry
++ */
++static inline void list_move_tail(struct list_head *list,
++				  struct list_head *head)
++{
++        __list_del(list->prev, list->next);
++        list_add_tail(list, head);
++}
++
++/**
++ * list_empty - tests whether a list is empty
++ * @head: the list to test.
++ */
++static inline int list_empty(struct list_head *head)
++{
++	return head->next == head;
++}
++
++static inline void __list_splice(struct list_head *list,
++				 struct list_head *head)
++{
++	struct list_head *first = list->next;
++	struct list_head *last = list->prev;
++	struct list_head *at = head->next;
++
++	first->prev = head;
++	head->next = first;
++
++	last->next = at;
++	at->prev = last;
++}
++
++/**
++ * list_splice - join two lists
++ * @list: the new list to add.
++ * @head: the place to add it in the first list.
++ */
++static inline void list_splice(struct list_head *list, struct list_head *head)
++{
++	if (!list_empty(list))
++		__list_splice(list, head);
++}
++
++/**
++ * list_splice_init - join two lists and reinitialise the emptied list.
++ * @list: the new list to add.
++ * @head: the place to add it in the first list.
++ *
++ * The list at @list is reinitialised
++ */
++static inline void list_splice_init(struct list_head *list,
++				    struct list_head *head)
++{
++	if (!list_empty(list)) {
++		__list_splice(list, head);
++		INIT_LIST_HEAD(list);
++	}
++}
++
++/**
++ * list_entry - get the struct for this entry
++ * @ptr:	the &struct list_head pointer.
++ * @type:	the type of the struct this is embedded in.
++ * @member:	the name of the list_struct within the struct.
++ */
++#define list_entry(ptr, type, member) \
++	((type *)((char *)(ptr)-(unsigned long)(&((type *)0)->member)))
++
++/**
++ * list_for_each	-	iterate over a list
++ * @pos:	the &struct list_head to use as a loop counter.
++ * @head:	the head for your list.
++ */
++#define list_for_each(pos, head) \
++	for (pos = (head)->next; pos != (head); \
++        	pos = pos->next)
++/**
++ * list_for_each_prev	-	iterate over a list backwards
++ * @pos:	the &struct list_head to use as a loop counter.
++ * @head:	the head for your list.
++ */
++#define list_for_each_prev(pos, head) \
++	for (pos = (head)->prev; pos != (head); \
++        	pos = pos->prev)
++        	
++/**
++ * list_for_each_safe	-	iterate over a list safe against removal of list entry
++ * @pos:	the &struct list_head to use as a loop counter.
++ * @n:		another &struct list_head to use as temporary storage
++ * @head:	the head for your list.
++ */
++#define list_for_each_safe(pos, n, head) \
++	for (pos = (head)->next, n = pos->next; pos != (head); \
++		pos = n, n = pos->next)
++
++/**
++ * list_for_each_entry	-	iterate over list of given type
++ * @pos:	the type * to use as a loop counter.
++ * @head:	the head for your list.
++ * @member:	the name of the list_struct within the struct.
++ */
++#define list_for_each_entry(pos, head, member)				\
++	for (pos = list_entry((head)->next, typeof(*pos), member);	\
++	     &pos->member != (head); 					\
++	     pos = list_entry(pos->member.next, typeof(*pos), member))
++
++/**
++ * list_for_each_entry_safe - iterate over list of given type safe against removal of list entry
++ * @pos:	the type * to use as a loop counter.
++ * @n:		another type * to use as temporary storage
++ * @head:	the head for your list.
++ * @member:	the name of the list_struct within the struct.
++ */
++#define list_for_each_entry_safe(pos, n, head, member)			\
++	for (pos = list_entry((head)->next, typeof(*pos), member),	\
++		n = list_entry(pos->member.next, typeof(*pos), member);	\
++	     &pos->member != (head); 					\
++	     pos = n, n = list_entry(n->member.next, typeof(*n), member))
++
++
++#endif
+diff --git a/ejercicios/1/main.c b/ejercicios/1/main.c
+new file mode 100644
+index 0000000..ed51c49
+--- /dev/null
++++ b/ejercicios/1/main.c
+@@ -0,0 +1,77 @@
++#include "gestor_tarea.h"
++#include <assert.h>
++
++int main(void)
++{
++	struct tarea *t1, *t2, *t3;
++	struct gestor_tarea *gt;
++	char info[10000];
++	uint32_t numeroDeTareas = 0;
++
++	t1 =  tarea_alloc();
++
++	tarea_set_str(t1, NOMBRE_TAREA, "Tarea 1");
++	tarea_set_str(t1, DESC_TAREA, "Abrir navegador");
++	tarea_set_str(t1, NOMBRE_USUARIO_T, "Vanessa");
++	tarea_set_u32(t1, TAREA_ID, 1);
++	tarea_set_u32(t1, T_PRIORIDAD, 6);
++
++	assert(strcmp(tarea_get_str(t1, NOMBRE_TAREA),"Tarea 1") == 0);
++	assert(strcmp(tarea_get_str(t1, DESC_TAREA), "Abrir navegador") == 0);
++	assert(strcmp(tarea_get_str(t1, NOMBRE_USUARIO_T), "Vanessa") == 0);
++	assert(tarea_get_u32(t1, TAREA_ID) == 1);
++	assert(tarea_get_u32(t1, T_PRIORIDAD) == 6);
++
++	t2 = tarea_alloc();
++
++	tarea_set_str(t2, NOMBRE_TAREA, "Tarea 2");
++	tarea_set_str(t2, DESC_TAREA, "cerrar navegador");
++	tarea_set_str(t2, NOMBRE_USUARIO_T, "Chipi");
++	tarea_set_u32(t2, TAREA_ID, 2);
++	tarea_set_u32(t2, T_PRIORIDAD, 8);
++
++	assert(strcmp(tarea_get_str(t2, NOMBRE_TAREA),"Tarea 2") == 0);
++	assert(strcmp(tarea_get_str(t2, DESC_TAREA), "cerrar navegador") == 0);
++	assert(strcmp(tarea_get_str(t2, NOMBRE_USUARIO_T), "Chipi") == 0);
++	assert(tarea_get_u32(t2, TAREA_ID) == 2);
++	assert(tarea_get_u32(t2, T_PRIORIDAD) == 8);
++
++	t3 = tarea_alloc();
++
++        tarea_set_str(t3, NOMBRE_TAREA, "Tarea 3");
++        tarea_set_str(t3, DESC_TAREA, "mostrar imagen");
++        tarea_set_str(t3, NOMBRE_USUARIO_T, "Chipi");
++        tarea_set_u32(t3, TAREA_ID, 3);
++        tarea_set_u32(t3, T_PRIORIDAD, 7);
++
++        assert(strcmp(tarea_get_str(t3, NOMBRE_TAREA),"Tarea 3") == 0);
++	assert(strcmp(tarea_get_str(t3, DESC_TAREA), "mostrar imagen") == 0);
++	assert(strcmp(tarea_get_str(t3, NOMBRE_USUARIO_T), "Chipi") == 0);
++	assert(tarea_get_u32(t3, TAREA_ID) == 3);
++	assert(tarea_get_u32(t3, T_PRIORIDAD) == 7);
++
++
++	gt = gestor_tareas_alloc();
++
++	gestor_tareas_set_tarea(gt, t1);
++	gestor_tareas_set_tarea(gt, t2);
++	gestor_tareas_set_tarea(gt, t3);
++
++	numeroDeTareas = gestor_tareas_get_u32(gt, GESTOR_TAREAS_NUM_TAREAS);
++	printf("Hay %d tareas en el gestor de tareas\n", numeroDeTareas);
++	assert(numeroDeTareas == 3);
++	gestor_tareas_unset_tarea(gt, 0);
++
++	numeroDeTareas = gestor_tareas_get_u32(gt, GESTOR_TAREAS_NUM_TAREAS);
++	assert(numeroDeTareas == 2);
++	printf("Se eliminó una. Ahora hay %d tareas en el gestor de tareas\n", numeroDeTareas);
++
++	printf("LA TAREA QUE ESTA EN LA POSICION 0 ES: %s\n",
++	tarea_get_str(gestor_tareas_get_tarea(gt, GESTOR_TAREAS_TAREAS,0), NOMBRE_TAREA));
++
++	gestor_tareas_snprintf(info, sizeof(info), gt);
++	printf("%s", info);
++
++	gestor_tareas_free(gt);
++	return 0;
++}
+diff --git a/ejercicios/1/tarea.c b/ejercicios/1/tarea.c
+new file mode 100644
+index 0000000..06d5af2
+--- /dev/null
++++ b/ejercicios/1/tarea.c
+@@ -0,0 +1,140 @@
++#include <string.h>
++#include "tarea.h"
++
++struct tarea *tarea_alloc(void)
++{
++	return (struct tarea *)malloc(sizeof(struct tarea));
++}
++
++void tarea_free(struct tarea *t)
++{
++	if (t->flags & (1 << NOMBRE_TAREA))
++		xfree(t->nombre_tarea);
++
++	if (t->flags & (1 << DESC_TAREA))
++		xfree(t->desc_tarea);
++	if (t->flags & (1 << NOMBRE_USUARIO_T))
++		xfree(t->nombre_usuario_t);
++	xfree(t);
++}
++
++bool tarea_is_set(const struct tarea *t, uint16_t attr)
++{
++	return t->flags & (1 << attr);
++}
++
++void tarea_unset(struct tarea *t, uint16_t attr)
++{
++	if (!(t->flags & (1 << attr)))
++		return;
++
++	switch (attr) {
++	case NOMBRE_TAREA:
++		if (t->nombre_tarea) {
++			xfree(t->nombre_tarea);
++			t->nombre_tarea = NULL;
++		}
++		break;
++	case DESC_TAREA:
++		if (t->desc_tarea) {
++			xfree(t->desc_tarea);
++			t->desc_tarea = NULL;
++		}
++		break;
++	case TAREA_ID:
++		break;
++	case NOMBRE_USUARIO_T:
++		if (t->nombre_usuario_t) {
++			xfree(t->nombre_usuario_t);
++			t->nombre_usuario_t = NULL;
++		}
++		break;
++	case T_PRIORIDAD:
++		break;
++	}
++
++	t->flags &= ~(1 << attr);
++}
++
++void tarea_set_data(struct tarea *t, uint16_t attr, const void *data,
++			  uint32_t data_len)
++{
++	if (attr > __TAREAS_MAX)
++		return;
++
++	switch (attr) {
++	case NOMBRE_TAREA:
++		if (t->nombre_tarea)
++			xfree(t->nombre_tarea);
++
++		t->nombre_tarea = strdup(data);
++		break;
++	case DESC_TAREA:
++		if (t->desc_tarea)
++			xfree(t->desc_tarea);
++
++		t->desc_tarea = strdup(data);
++		break;
++	case TAREA_ID:
++		t->tarea_id = *((uint32_t *)data);
++		break;
++	case NOMBRE_USUARIO_T:
++		if(t->nombre_usuario_t)
++			xfree(t->nombre_usuario_t);
++		t->nombre_usuario_t = strdup(data);
++		break;
++	case T_PRIORIDAD:
++		t->t_prioridad = *((uint32_t *)data);
++		break;
++	}
++
++	t->flags |= (1 << attr);
++}
++
++void tarea_set_u32(struct tarea *t, uint16_t attr, uint32_t data)
++{
++	tarea_set_data(t, attr, &data, sizeof(uint32_t));
++}
++
++void tarea_set_str(struct tarea *t, uint16_t attr, const char *data)
++{
++	tarea_set_data(t, attr, data, 0);
++}
++
++const void *tarea_get_data(struct tarea *t, uint16_t attr)
++{
++	if (!(t->flags & (1 << attr)))
++		return NULL;
++
++	switch(attr) {
++	case NOMBRE_TAREA:
++		return t->nombre_tarea;
++	case DESC_TAREA:
++		return t->desc_tarea;
++	case TAREA_ID:
++		return &t->tarea_id;
++	case NOMBRE_USUARIO_T:
++		return t->nombre_usuario_t;
++	case T_PRIORIDAD:
++		return &t->t_prioridad;
++	}
++	return NULL;
++}
++
++uint32_t tarea_get_u32(struct tarea *t, uint16_t attr)
++{
++	const void *ret = tarea_get_data(t, attr);
++	return ret == NULL ? 0 : *((uint32_t *)ret);
++}
++
++const char *tarea_get_str(struct tarea *t, uint16_t attr)
++{
++	return tarea_get_data(t, attr);
++}
++
++int tarea_snprintf(char *buf, size_t size, struct tarea *t)
++{
++	return snprintf(buf, size, "La tarea numero %d está enviada por %s."
++	"Se llama %s y la descripción es %s y la prioridad es %d\n",
++	t->tarea_id, t->nombre_usuario_t, t->nombre_tarea, t->desc_tarea, t->t_prioridad);
++}
+diff --git a/ejercicios/1/tarea.h b/ejercicios/1/tarea.h
+new file mode 100644
+index 0000000..af9d376
+--- /dev/null
++++ b/ejercicios/1/tarea.h
+@@ -0,0 +1,46 @@
++#include <stdio.h>
++#include <stdint.h>
++#include <stdlib.h>
++#include <stdbool.h>
++#include "list.h"
++
++enum {
++	NOMBRE_TAREA = 0,
++	DESC_TAREA,
++	TAREA_ID,
++	NOMBRE_USUARIO_T,
++	T_PRIORIDAD,
++	__TAREAS_MAX
++};
++
++#define TAREAS_MAX (__TAREA_MAX - 1)
++
++#define xfree(ptr)      free((void *)ptr);
++
++struct tarea {
++	struct list_head head;
++	const char 	*nombre_tarea;
++	const char 	*desc_tarea;
++	int 		tarea_id;
++	const char 	*nombre_usuario_t;
++	int 		t_prioridad;
++	uint32_t 	flags;
++};
++
++struct tarea *tarea_alloc(void);
++void tarea_free(struct tarea *);
++
++bool tarea_is_set(const struct tarea *t, uint16_t attr);
++
++void tarea_unset(struct tarea *t, uint16_t attr);
++
++void tarea_set_data(struct tarea *t, uint16_t attr, const void *data,
++			       uint32_t data_len);
++void tarea_set_u32(struct tarea *t, uint16_t attr, uint32_t data);
++void tarea_set_str(struct tarea *t, uint16_t attr, const char *data);
++
++const void *tarea_get_data(struct tarea *t, uint16_t attr);
++uint32_t tarea_get_u32(struct tarea *t, uint16_t attr);
++const char *tarea_get_str(struct tarea *t, uint16_t attr);
++
++int tarea_snprintf(char *buf, size_t size, struct tarea *t);
+-- 
+1.9.1
+
